@@ -58,17 +58,21 @@ async function fetchTracks(mood: string): Promise<ItunesTrack[]> {
   return promise
 }
 
-export function useItunesTrack(weatherCode: number | null) {
+export function useItunesTrack(weatherCode: number | null, enabled = true) {
   const [track, setTrack] = useState<ItunesTrack | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    if (!enabled) {
+      setTrack(null)
+      return () => { cancelled = true }
+    }
     fetchTracks(weatherMood(weatherCode)).then(tracks => {
       if (!cancelled && tracks.length > 0)
         setTrack(tracks[Math.floor(Math.random() * tracks.length)])
     })
     return () => { cancelled = true }
-  }, [weatherCode])
+  }, [weatherCode, enabled])
 
   return track
 }

@@ -23,6 +23,11 @@ export type CityStats = {
   avg_f: number | null
 }
 
+type WeatherCardState = {
+  reading: WeatherReading
+  pending: boolean
+}
+
 function weatherIcon(code: number | null): string {
   if (code === null) return '🌡️'
   if (code === 0) return '☀️'
@@ -80,20 +85,22 @@ function WeatherCard({
   reading,
   stats,
   isFavorite,
+  pending,
   onRemove,
 }: {
   reading: WeatherReading
   stats: CityStats | null
   isFavorite: boolean
+  pending: boolean
   onRemove?: () => void
 }) {
-  const track = useItunesTrack(reading.weather_code)
+  const track = useItunesTrack(reading.weather_code, !pending)
   const { playing, toggle } = useAudioPlayer(track?.previewUrl)
-  const hasStats = stats && (stats.min_f != null || stats.max_f != null)
+  const hasStats = !pending && stats && (stats.min_f != null || stats.max_f != null)
   const flag = countryFlag(reading.country_code)
 
   return (
-    <div className={`rounded-2xl border flex flex-col bg-white shadow-sm transition-shadow hover:shadow-md overflow-hidden select-none cursor-default ${isFavorite ? 'border-blue-400 ring-1 ring-blue-200' : 'border-gray-200'}`}>
+    <div className={`rounded-2xl border flex flex-col shadow-sm transition-shadow hover:shadow-md overflow-hidden select-none cursor-default ${pending ? 'bg-amber-50 border-amber-200 ring-1 ring-amber-100' : 'bg-white'} ${isFavorite && !pending ? 'border-blue-400 ring-1 ring-blue-200' : ''}`}>
       <div className="p-5 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="font-semibold text-gray-800 truncate">
@@ -120,15 +127,19 @@ function WeatherCard({
           </div>
         )}
 
-        <div className="text-4xl">{weatherIcon(reading.weather_code)}</div>
+        <div className="text-4xl">{pending ? '⏳' : weatherIcon(reading.weather_code)}</div>
         <div className="text-2xl font-bold text-gray-900">
-          {reading.temperature_f != null ? `${Math.round(reading.temperature_f)}°F` : '—'}
+          {pending ? 'Waiting…' : reading.temperature_f != null ? `${Math.round(reading.temperature_f)}°F` : '—'}
         </div>
-        <div className="text-sm text-gray-500">{weatherLabel(reading.weather_code)}</div>
-        <div className="flex gap-3 text-xs text-gray-400 mt-1">
-          <span>💧 {reading.humidity != null ? `${reading.humidity}%` : '—'}</span>
-          <span>💨 {reading.wind_speed != null ? `${Math.round(reading.wind_speed)} mph` : '—'}</span>
+        <div className="text-sm text-gray-500">
+          {pending ? 'Awaiting first worker poll' : weatherLabel(reading.weather_code)}
         </div>
+        {!pending && (
+          <div className="flex gap-3 text-xs text-gray-400 mt-1">
+            <span>💧 {reading.humidity != null ? `${reading.humidity}%` : '—'}</span>
+            <span>💨 {reading.wind_speed != null ? `${Math.round(reading.wind_speed)} mph` : '—'}</span>
+          </div>
+        )}
         {hasStats && (
           <div className="text-xs text-gray-400 border-t border-gray-100 pt-2 mt-1">
             24h: {stats.min_f != null ? `${Math.round(stats.min_f)}°` : '—'}
@@ -189,6 +200,30 @@ export default function WeatherLive({ initialReadings, initialStats, userCities,
   const [removed, setRemoved] = useState<Set<string>>(loadHidden)
   const [isPending, startTransition] = useTransition()
   const publicCitySet = useMemo(() => new Set(publicCities), [publicCities])
+  const displayItems = useMemo<WeatherCardState[]>(() => {
+    const cities = isSignedIn
+      ? [...localSaved]
+      : [...publicCitySet].filter(city => !removed.has(city))
+
+    return cities
+      .sort((a, b) => a.localeCompare(b))
+      .map(city => {
+        const reading = byCity.get(city)
+        return {
+          reading: reading ?? {
+            city,
+            temperature_f: null,
+            humidity: null,
+            wind_speed: null,
+            weather_code: null,
+            recorded_at: null,
+            timezone: null,
+            country_code: null,
+          },
+          pending: !reading,
+        }
+      })
+  }, [byCity, isSignedIn, localSaved, publicCitySet, removed])
 
   useEffect(() => {
     setByCity(prev => {
@@ -255,11 +290,7 @@ export default function WeatherLive({ initialReadings, initialStats, userCities,
     }
   }
 
-  const readings = [...byCity.values()]
-    .filter(r => isSignedIn ? localSaved.has(r.city) : publicCitySet.has(r.city) && !removed.has(r.city))
-    .sort((a, b) => a.city.localeCompare(b.city))
-
-  if (readings.length === 0) {
+  if (displayItems.length === 0) {
     return (
       <div className="text-center py-20 text-gray-400 select-none">
         <div className="text-5xl mb-4">📍</div>
@@ -279,13 +310,14 @@ export default function WeatherLive({ initialReadings, initialStats, userCities,
         </span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {readings.map(r => (
+        {displayItems.map(({ reading, pending }) => (
           <WeatherCard
-            key={r.city}
-            reading={r}
-            stats={stats[r.city] ?? null}
-            isFavorite={localSaved.has(r.city)}
-            onRemove={isSignedIn ? () => handleRemove(r.city) : undefined}
+            key={reading.city}
+            reading={reading}
+            stats={stats[reading.city] ?? null}
+            isFavorite={localSaved.has(reading.city)}
+            pending={pending}
+            onRemove={isSignedIn ? () => handleRemove(reading.city) : undefined}
           />
         ))}
       </div>
