@@ -72,6 +72,12 @@ export default function CityManager({ userCities }: Props) {
     )
   }
 
+  // auto-detect on first sign-in
+  useEffect(() => {
+    if (userCities.length === 0) detectLocation()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     const trimmed = query.trim()
     if (!trimmed) {
@@ -158,17 +164,22 @@ export default function CityManager({ userCities }: Props) {
       )}
 
       {userCities.length === 0 && (
-        <div className="mb-4">
-          <button
-            onClick={detectLocation}
-            disabled={geoLoading || isPending}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-blue-600 disabled:opacity-50 transition-colors"
-          >
-            <span>📍</span>
-            {geoLoading ? 'Detecting…' : 'Use my current location'}
-          </button>
-          {geoError && <p className="text-xs text-red-400 mt-1">{geoError}</p>}
-          {!geoError && !geoLoading && <p className="text-xs text-gray-400 mt-1">Or type a city above. It will appear after the next poll (~30s).</p>}
+        <div className="mb-4 text-xs text-gray-400">
+          {geoLoading && <p>📍 Detecting your location…</p>}
+          {geoError && (
+            <div>
+              <p className="text-red-400 mb-1">{geoError}</p>
+              <button
+                onClick={detectLocation}
+                disabled={geoLoading || isPending}
+                className="text-blue-500 hover:text-blue-700 disabled:opacity-50"
+              >
+                Try again
+              </button>
+              <span className="ml-2 text-gray-300">or type a city above</span>
+            </div>
+          )}
+          {!geoLoading && !geoError && <p>Your city will appear after the next poll (~30s).</p>}
         </div>
       )}
 

@@ -237,14 +237,14 @@ export default function WeatherLive({ initialReadings, initialStats, userCities,
   }
 
   const readings = [...byCity.values()]
-    .filter(r => !removed.has(r.city))
+    .filter(r => isSignedIn ? localSaved.has(r.city) : !removed.has(r.city))
     .sort((a, b) => a.city.localeCompare(b.city))
 
   if (readings.length === 0) {
     return (
       <div className="text-center py-20 text-gray-400 select-none">
-        <div className="text-5xl mb-4">🌐</div>
-        <p className="text-lg">Waiting for weather data…</p>
+        <div className="text-5xl mb-4">📍</div>
+        <p className="text-lg">{isSignedIn ? 'Adding your city…' : 'Waiting for weather data…'}</p>
         <p className="text-sm mt-1">The worker polls every 30 seconds.</p>
       </div>
     )
