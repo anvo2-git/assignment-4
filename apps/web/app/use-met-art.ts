@@ -22,46 +22,54 @@ function weatherKeyword(code: number | null): string {
   return 'storm'
 }
 
-const MET_GEO: Record<string, string> = {
-  US: 'United States',
-  GB: 'England',
-  JP: 'Japan',
-  FR: 'France',
-  DE: 'Germany',
-  IT: 'Italy',
-  ES: 'Spain',
-  NL: 'Netherlands',
-  BE: 'Belgium',
-  AU: 'Australia',
-  CN: 'China',
-  IN: 'India',
-  BR: 'Brazil',
-  MX: 'Mexico',
-  CA: 'Canada',
-  AT: 'Austria',
-  RU: 'Russia',
-  GR: 'Greece',
-  EG: 'Egypt',
-  TR: 'Turkey',
+const MET_CULTURE: Record<string, string> = {
+  US: 'American',
+  GB: 'British',
+  JP: 'Japanese',
+  FR: 'French',
+  DE: 'German',
+  IT: 'Italian',
+  ES: 'Spanish',
+  NL: 'Dutch',
+  BE: 'Flemish',
+  AU: 'Australian',
+  CN: 'Chinese',
+  IN: 'Indian',
+  BR: 'Brazilian',
+  MX: 'Mexican',
+  CA: 'Canadian',
+  AT: 'Austrian',
+  RU: 'Russian',
+  GR: 'Greek',
+  EG: 'Egyptian',
+  TR: 'Turkish',
+  VN: 'Vietnamese',
+  KR: 'Korean',
+  TH: 'Thai',
+  PL: 'Polish',
+  SE: 'Swedish',
+  NO: 'Norwegian',
+  DK: 'Danish',
+  PT: 'Portuguese',
 }
 
 // module-level caches
 const idCache = new Map<string, number[]>()
 const artCache = new Map<number, MetArt>()
 
-async function getObjectIds(keyword: string, geoLocation?: string): Promise<number[]> {
-  const key = geoLocation ? `${geoLocation}:${keyword}` : keyword
+async function getObjectIds(keyword: string, culture?: string): Promise<number[]> {
+  const key = culture ? `${culture}:${keyword}` : keyword
   if (idCache.has(key)) return idCache.get(key)!
 
-  const geo = geoLocation ? `&geoLocation=${encodeURIComponent(geoLocation)}` : ''
+  const q = culture ? `${culture} ${keyword}` : keyword
   const res = await fetch(
-    `https://collectionapi.metmuseum.org/public/collection/v1/search?q=${encodeURIComponent(keyword)}&hasImages=true&medium=Paintings${geo}`
+    `https://collectionapi.metmuseum.org/public/collection/v1/search?q=${encodeURIComponent(q)}&hasImages=true`
   )
   const data = await res.json()
   const ids: number[] = (data.objectIDs ?? []).slice(0, 80)
 
-  // fallback to no geoLocation if country returned nothing
-  if (ids.length === 0 && geoLocation) {
+  // fallback to keyword-only if country+keyword returns nothing
+  if (ids.length === 0 && culture) {
     const fallback = await getObjectIds(keyword)
     idCache.set(key, fallback)
     return fallback
@@ -94,10 +102,10 @@ export function useMetArt(weatherCode: number | null, countryCode?: string | nul
   useEffect(() => {
     let cancelled = false
     const keyword = weatherKeyword(weatherCode)
-    const geoLocation = countryCode ? MET_GEO[countryCode.toUpperCase()] : undefined
+    const culture = countryCode ? MET_CULTURE[countryCode.toUpperCase()] : undefined
 
     async function load() {
-      const ids = await getObjectIds(keyword, geoLocation)
+      const ids = await getObjectIds(keyword, culture)
       if (!ids.length || cancelled) return
 
       for (let attempt = 0; attempt < 5; attempt++) {

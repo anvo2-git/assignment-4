@@ -151,6 +151,8 @@ function WeatherCard({
   )
 }
 
+const DEFAULT_CITY_NAMES = new Set(['Chicago', 'New York', 'Los Angeles', 'London', 'Tokyo'])
+
 interface Props {
   initialReadings: WeatherReading[]
   initialStats: Record<string, CityStats>
@@ -164,6 +166,7 @@ export default function WeatherLive({ initialReadings, initialStats, userCities 
     return m
   })
   const [stats] = useState<Record<string, CityStats>>(initialStats)
+  const [localSaved, setLocalSaved] = useState<Set<string>>(() => new Set(userCities))
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -175,6 +178,10 @@ export default function WeatherLive({ initialReadings, initialStats, userCities 
       return m
     })
   }, [initialReadings])
+
+  useEffect(() => {
+    setLocalSaved(new Set(userCities))
+  }, [userCities])
 
   useEffect(() => {
     const sb = createClient(
@@ -197,8 +204,13 @@ export default function WeatherLive({ initialReadings, initialStats, userCities 
     return () => { sb.removeChannel(channel) }
   }, [])
 
-  const readings = [...byCity.values()].sort((a, b) => a.city.localeCompare(b.city))
-  const userCitySet = new Set(userCities)
+  function handleRemove(city: string) {
+    setLocalSaved(prev => { const s = new Set(prev); s.delete(city); return s })
+    startTransition(() => removeCity(city))
+  }
+
+  const allReadings = [...byCity.values()].sort((a, b) => a.city.localeCompare(b.city))
+  const readings = allReadings.filter(r => DEFAULT_CITY_NAMES.has(r.city) || localSaved.has(r.city))
 
   if (readings.length === 0) {
     return (
@@ -225,8 +237,8 @@ export default function WeatherLive({ initialReadings, initialStats, userCities 
             key={r.city}
             reading={r}
             stats={stats[r.city] ?? null}
-            isFavorite={userCitySet.has(r.city)}
-            onRemove={userCitySet.has(r.city) ? () => startTransition(() => removeCity(r.city)) : undefined}
+            isFavorite={localSaved.has(r.city)}
+            onRemove={localSaved.has(r.city) ? () => handleRemove(r.city) : undefined}
           />
         ))}
       </div>

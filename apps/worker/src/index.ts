@@ -42,7 +42,7 @@ async function fetchWeather(lat: number, lon: number) {
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code` +
-    `&temperature_unit=fahrenheit`
+    `&temperature_unit=fahrenheit&timezone=auto`
   const res = await fetch(url)
   return res.json()
 }
