@@ -23,30 +23,26 @@ function weatherMood(code: number | null): string {
   return 'intense'
 }
 
-// nationality adjectives for search terms — always queries the US store
-// so results are artists FROM that country, not what's popular there
-const NATIONALITY: Record<string, string> = {
-  US: 'American', GB: 'British', JP: 'Japanese', FR: 'French',
-  DE: 'German', IT: 'Italian', ES: 'Spanish', NL: 'Dutch',
-  AU: 'Australian', CN: 'Chinese', IN: 'Indian', BR: 'Brazilian',
-  MX: 'Mexican', CA: 'Canadian', AT: 'Austrian', RU: 'Russian',
-  GR: 'Greek', TR: 'Turkish', KR: 'Korean', TH: 'Thai',
-  SE: 'Swedish', NO: 'Norwegian', DK: 'Danish', PL: 'Polish',
-  VN: 'Vietnamese', BE: 'Belgian', PT: 'Portuguese',
+// iTunes store codes by country
+const ITUNES_STORE: Record<string, string> = {
+  US: 'us', GB: 'gb', JP: 'jp', FR: 'fr', DE: 'de', IT: 'it',
+  ES: 'es', NL: 'nl', AU: 'au', CN: 'cn', IN: 'in', BR: 'br',
+  MX: 'mx', CA: 'ca', AT: 'at', RU: 'ru', GR: 'gr', TR: 'tr',
+  KR: 'kr', TH: 'th', SE: 'se', NO: 'no', DK: 'dk', PL: 'pl',
+  VN: 'vn', BE: 'be', PT: 'pt',
 }
 
 const trackCache = new Map<string, ItunesTrack[]>()
 const pendingFetches = new Map<string, Promise<ItunesTrack[]>>()
 
 async function fetchTracks(mood: string, countryCode: string): Promise<ItunesTrack[]> {
-  const nationality = NATIONALITY[countryCode.toUpperCase()]
-  const term = nationality ? `${nationality} ${mood}` : mood
-  const key = `${countryCode.toLowerCase()}:${mood}`
+  const store = ITUNES_STORE[countryCode.toUpperCase()] ?? 'us'
+  const key = `${store}:${mood}`
   if (trackCache.has(key)) return trackCache.get(key)!
   if (pendingFetches.has(key)) return pendingFetches.get(key)!
 
   const promise = (async () => {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=us&media=music&limit=25&entity=song`
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(mood)}&country=${store}&media=music&limit=25&entity=song`
     const res = await fetch(url)
     const data = await res.json()
     const tracks: ItunesTrack[] = (data.results ?? [])
@@ -65,9 +61,9 @@ async function fetchTracks(mood: string, countryCode: string): Promise<ItunesTra
         trackViewUrl: r.trackViewUrl,
       }))
 
-    // fallback to mood-only if nationality search returned nothing
-    if (tracks.length === 0 && nationality) {
-      const fallback = await fetchTracks(mood, '')
+    // fallback to US store if local store returned nothing
+    if (tracks.length === 0 && store !== 'us') {
+      const fallback = await fetchTracks(mood, 'US')
       trackCache.set(key, fallback)
       return fallback
     }
