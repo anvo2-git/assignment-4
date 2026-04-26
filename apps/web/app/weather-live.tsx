@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useItunesTrack, useAudioPlayer } from './use-itunes-track'
 import { removeCity } from './actions'
@@ -173,10 +173,11 @@ interface Props {
   initialReadings: WeatherReading[]
   initialStats: Record<string, CityStats>
   userCities: string[]
+  publicCities: readonly string[]
   isSignedIn: boolean
 }
 
-export default function WeatherLive({ initialReadings, initialStats, userCities, isSignedIn }: Props) {
+export default function WeatherLive({ initialReadings, initialStats, userCities, publicCities, isSignedIn }: Props) {
   const [byCity, setByCity] = useState<Map<string, WeatherReading>>(() => {
     const m = new Map<string, WeatherReading>()
     for (const r of initialReadings) m.set(r.city, r)
@@ -186,6 +187,7 @@ export default function WeatherLive({ initialReadings, initialStats, userCities,
   const [localSaved, setLocalSaved] = useState<Set<string>>(() => new Set(userCities))
   const [removed, setRemoved] = useState<Set<string>>(loadHidden)
   const [isPending, startTransition] = useTransition()
+  const publicCitySet = useMemo(() => new Set(publicCities), [publicCities])
 
   useEffect(() => {
     setByCity(prev => {
@@ -237,7 +239,7 @@ export default function WeatherLive({ initialReadings, initialStats, userCities,
   }
 
   const readings = [...byCity.values()]
-    .filter(r => isSignedIn ? localSaved.has(r.city) : !removed.has(r.city))
+    .filter(r => isSignedIn ? localSaved.has(r.city) : publicCitySet.has(r.city) && !removed.has(r.city))
     .sort((a, b) => a.city.localeCompare(b.city))
 
   if (readings.length === 0) {

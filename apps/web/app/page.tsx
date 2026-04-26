@@ -5,6 +5,9 @@ import CityManager from './city-manager'
 import WeatherDigest from './weather-digest'
 import { getUserCities } from './actions'
 
+const PUBLIC_CITY_NAMES = ['Chicago', 'New York', 'Los Angeles', 'London', 'Tokyo'] as const
+const PUBLIC_CITY_SET = new Set<string>(PUBLIC_CITY_NAMES)
+
 export default async function Home() {
   const { userId } = await auth()
 
@@ -18,7 +21,13 @@ export default async function Home() {
     .select('city,temperature_f,humidity,wind_speed,weather_code,recorded_at,timezone,country_code')
     .order('city')
 
-  const cities = (readings ?? []).map(r => r.city as string)
+  const userCities = userId ? await getUserCities() : []
+  const allReadings = (readings ?? []) as WeatherReading[]
+  const visibleReadings = userId
+    ? allReadings.filter(r => userCities.includes(r.city))
+    : allReadings.filter(r => PUBLIC_CITY_SET.has(r.city))
+
+  const cities = visibleReadings.map(r => r.city)
 
   const statsResults = await Promise.all(
     cities.map(city =>
@@ -32,15 +41,14 @@ export default async function Home() {
     if (row) statsMap[city] = row
   })
 
-  const userCities = userId ? await getUserCities() : []
-
   return (
     <main className="flex-1 px-6 py-8 max-w-5xl mx-auto w-full">
       <WeatherDigest cities={cities} />
       <WeatherLive
-        initialReadings={(readings ?? []) as WeatherReading[]}
+        initialReadings={visibleReadings}
         initialStats={statsMap}
         userCities={userCities}
+        publicCities={PUBLIC_CITY_NAMES}
         isSignedIn={!!userId}
       />
       {userId && <CityManager userCities={userCities} />}
