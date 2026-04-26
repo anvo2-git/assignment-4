@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, type FormEvent } from 'react'
 import { addCity, removeCity } from './actions'
 
 interface PreviewData {
@@ -28,8 +28,14 @@ interface Props {
   userCities: string[]
 }
 
+const SAVED_CITIES_EVENT = 'weather-user-cities-changed'
+
+function broadcastSavedCityChange(city: string, action: 'add' | 'remove') {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(SAVED_CITIES_EVENT, { detail: { city, action } }))
+}
+
 export default function CityManager({ userCities }: Props) {
-  const [isPending, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [preview, setPreview] = useState<PreviewData | null>(null)
@@ -38,6 +44,8 @@ export default function CityManager({ userCities }: Props) {
   const [geoLoading, setGeoLoading] = useState(false)
   const [geoError, setGeoError] = useState<string | null>(null)
   const [pendingCity, setPendingCity] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   async function detectLocation() {
     if (!navigator.geolocation) {
@@ -56,7 +64,16 @@ export default function CityManager({ userCities }: Props) {
           const data = await res.json()
           const city = data.address?.city || data.address?.town || data.address?.village || data.address?.county
           if (city) {
-            startTransition(() => addCity(city))
+            setActionError(null)
+            setIsSaving(true)
+            try {
+              await addCity(city)
+              broadcastSavedCityChange(city, 'add')
+            } catch (err) {
+              setActionError(err instanceof Error ? err.message : 'Could not save city')
+            } finally {
+              setIsSaving(false)
+            }
           } else {
             setGeoError('Could not determine your city')
           }
@@ -116,19 +133,31 @@ export default function CityManager({ userCities }: Props) {
     }
   }, [pendingCity, userCities])
 
-  function handleAdd(formData: FormData) {
+  async function handleAdd(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
     const city = (preview?.city ?? (formData.get('city') as string ?? '')).trim()
     if (!city) return
-    setQuery('')
-    setPendingCity(city)
-    startTransition(() => addCity(city))
+    setActionError(null)
+    setIsSaving(true)
+    try {
+      await addCity(city)
+      setQuery('')
+      setPendingCity(city)
+      setPreview(null)
+      broadcastSavedCityChange(city, 'add')
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not save city')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
     <div className="mt-10 border-t border-gray-100 pt-8">
       <h3 className="text-lg font-semibold text-gray-800 mb-4">My Cities</h3>
 
-      <form action={handleAdd} className="flex gap-2 mb-3">
+      <form onSubmit={handleAdd} className="flex gap-2 mb-3">
         <input
           ref={inputRef}
           name="city"
@@ -136,17 +165,23 @@ export default function CityManager({ userCities }: Props) {
           onChange={e => setQuery(e.target.value)}
           placeholder="Add a city (e.g. Paris)"
           className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-          disabled={isPending}
+          disabled={isSaving}
           autoComplete="off"
         />
         <button
           type="submit"
-          disabled={isPending || (!preview && !query.trim())}
+          disabled={isSaving || (!preview && !query.trim())}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {isPending ? '…' : 'Add'}
+          {isSaving ? '…' : 'Add'}
         </button>
       </form>
+
+      {actionError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+          {actionError}
+        </div>
+      )}
 
       {previewLoading && (
         <div className="text-xs text-gray-400 mb-4">Looking up {query}…</div>
@@ -184,7 +219,7 @@ export default function CityManager({ userCities }: Props) {
               <p className="text-red-400 mb-1">{geoError}</p>
               <button
                 onClick={detectLocation}
-                disabled={geoLoading || isPending}
+                disabled={geoLoading || isSaving}
                 className="text-blue-500 hover:text-blue-700 disabled:opacity-50"
               >
                 Try again
@@ -202,8 +237,19 @@ export default function CityManager({ userCities }: Props) {
             <li key={city} className="flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-sm text-blue-700">
               {city}
               <button
-                onClick={() => startTransition(() => removeCity(city))}
-                disabled={isPending}
+                onClick={async () => {
+                  setActionError(null)
+                  setIsSaving(true)
+                  try {
+                    await removeCity(city)
+                    broadcastSavedCityChange(city, 'remove')
+                  } catch (err) {
+                    setActionError(err instanceof Error ? err.message : 'Could not remove city')
+                  } finally {
+                    setIsSaving(false)
+                  }
+                }}
+                disabled={isSaving}
                 className="text-blue-400 hover:text-blue-700 disabled:opacity-50 font-bold leading-none"
                 aria-label={`Remove ${city}`}
               >

@@ -21,9 +21,10 @@ export async function addCity(city: string): Promise<void> {
   const trimmed = city.trim()
   if (!trimmed) return
   const sb = getServerClient()
-  await sb
+  const { error } = await sb
     .from('user_cities')
     .upsert({ clerk_id: userId, city: trimmed }, { onConflict: 'clerk_id,city' })
+  if (error) throw new Error(error.message)
   revalidatePath('/')
 }
 
@@ -31,10 +32,11 @@ export async function removeCity(city: string): Promise<void> {
   const { userId } = await auth()
   if (!userId) throw new Error('Unauthorized')
   const sb = getServerClient()
-  await sb
+  const { error } = await sb
     .from('user_cities')
     .delete()
     .eq('clerk_id', userId)
     .eq('city', city)
+  if (error) throw new Error(error.message)
   revalidatePath('/')
 }

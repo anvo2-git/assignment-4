@@ -160,6 +160,7 @@ function WeatherCard({
 }
 
 const HIDDEN_CITIES_KEY = 'weather-hidden-cities'
+const SAVED_CITIES_EVENT = 'weather-user-cities-changed'
 
 function loadHidden(): Set<string> {
   if (typeof window === 'undefined') return new Set()
@@ -202,6 +203,22 @@ export default function WeatherLive({ initialReadings, initialStats, userCities,
   useEffect(() => {
     setLocalSaved(new Set(userCities))
   }, [userCities])
+
+  useEffect(() => {
+    function handleSavedCitiesChange(event: Event) {
+      const detail = (event as CustomEvent<{ city: string; action: 'add' | 'remove' }>).detail
+      if (!detail?.city) return
+      setLocalSaved(prev => {
+        const next = new Set(prev)
+        if (detail.action === 'add') next.add(detail.city)
+        if (detail.action === 'remove') next.delete(detail.city)
+        return next
+      })
+    }
+
+    window.addEventListener(SAVED_CITIES_EVENT, handleSavedCitiesChange)
+    return () => window.removeEventListener(SAVED_CITIES_EVENT, handleSavedCitiesChange)
+  }, [])
 
   useEffect(() => {
     try {
