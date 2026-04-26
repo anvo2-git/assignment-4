@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider, SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
+import Link from "next/link";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,7 +32,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ClerkProvider>
           <header className="flex items-center justify-between px-6 py-3 border-b border-gray-200">
-            <span className="font-semibold text-gray-800">Weather Dashboard</span>
+            <Link href="/" className="font-semibold text-gray-800 hover:text-blue-600 transition-colors select-none">Weather Dashboard</Link>
             <div className="flex gap-3 items-center">
               <Show when="signed-out">
                 <SignInButton />
