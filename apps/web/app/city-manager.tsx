@@ -35,6 +35,42 @@ export default function CityManager({ userCities }: Props) {
   const [preview, setPreview] = useState<PreviewData | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [geoLoading, setGeoLoading] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
+
+  async function detectLocation() {
+    if (!navigator.geolocation) {
+      setGeoError('Geolocation not supported by your browser')
+      return
+    }
+    setGeoLoading(true)
+    setGeoError(null)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          )
+          const data = await res.json()
+          const city = data.address?.city || data.address?.town || data.address?.village || data.address?.county
+          if (city) {
+            startTransition(() => addCity(city))
+          } else {
+            setGeoError('Could not determine your city')
+          }
+        } catch {
+          setGeoError('Could not detect location')
+        } finally {
+          setGeoLoading(false)
+        }
+      },
+      () => {
+        setGeoError('Location access denied')
+        setGeoLoading(false)
+      }
+    )
+  }
 
   useEffect(() => {
     const trimmed = query.trim()
@@ -121,9 +157,22 @@ export default function CityManager({ userCities }: Props) {
         </div>
       )}
 
-      {userCities.length === 0 ? (
-        <p className="text-sm text-gray-400">No saved cities yet. Add one above and it will appear after the next poll (~30s).</p>
-      ) : (
+      {userCities.length === 0 && (
+        <div className="mb-4">
+          <button
+            onClick={detectLocation}
+            disabled={geoLoading || isPending}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-blue-600 disabled:opacity-50 transition-colors"
+          >
+            <span>📍</span>
+            {geoLoading ? 'Detecting…' : 'Use my current location'}
+          </button>
+          {geoError && <p className="text-xs text-red-400 mt-1">{geoError}</p>}
+          {!geoError && !geoLoading && <p className="text-xs text-gray-400 mt-1">Or type a city above. It will appear after the next poll (~30s).</p>}
+        </div>
+      )}
+
+      {userCities.length > 0 && (
         <ul className="flex flex-wrap gap-2">
           {userCities.map(city => (
             <li key={city} className="flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-sm text-blue-700">

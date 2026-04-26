@@ -7,22 +7,22 @@ const supabase = createClient(
 )
 
 const DEFAULT_CITIES = [
-  { name: 'Chicago',     lat: 41.8781,  lon: -87.6298  },
-  { name: 'New York',    lat: 40.7128,  lon: -74.0060  },
-  { name: 'Los Angeles', lat: 34.0522,  lon: -118.2437 },
-  { name: 'London',      lat: 51.5074,  lon: -0.1278   },
-  { name: 'Tokyo',       lat: 35.6762,  lon: 139.6503  },
+  { name: 'Chicago',     lat: 41.8781,  lon: -87.6298,  timezone: 'America/Chicago',     country: 'US' },
+  { name: 'New York',    lat: 40.7128,  lon: -74.0060,  timezone: 'America/New_York',    country: 'US' },
+  { name: 'Los Angeles', lat: 34.0522,  lon: -118.2437, timezone: 'America/Los_Angeles', country: 'US' },
+  { name: 'London',      lat: 51.5074,  lon: -0.1278,   timezone: 'Europe/London',       country: 'GB' },
+  { name: 'Tokyo',       lat: 35.6762,  lon: 139.6503,  timezone: 'Asia/Tokyo',          country: 'JP' },
 ]
 
 const DEFAULT_NAMES = new Set(DEFAULT_CITIES.map(c => c.name.toLowerCase()))
 
-async function geocode(name: string): Promise<{ lat: number; lon: number } | null> {
+async function geocode(name: string): Promise<{ lat: number; lon: number; country: string } | null> {
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1`
   const res = await fetch(url)
   const data = await res.json()
   const r = data.results?.[0]
   if (!r) return null
-  return { lat: r.latitude, lon: r.longitude }
+  return { lat: r.latitude, lon: r.longitude, country: r.country_code ?? '' }
 }
 
 async function getUserCities() {
@@ -51,7 +51,7 @@ async function fetchAndStore() {
   console.log(`[${new Date().toISOString()}] polling Open-Meteo...`)
 
   const userCityNames = await getUserCities()
-  const userCities: { name: string; lat: number; lon: number }[] = []
+  const userCities: { name: string; lat: number; lon: number; country: string }[] = []
   for (const name of userCityNames) {
     const coords = await geocode(name)
     if (coords) userCities.push({ name, ...coords })
@@ -71,6 +71,8 @@ async function fetchAndStore() {
       wind_speed: c.wind_speed_10m,
       weather_code: c.weather_code,
       recorded_at: c.time,
+      timezone: data.timezone ?? null,
+      country_code: city.country ?? null,
     }
 
     const [{ error: upsertErr }, { error: insertErr }] = await Promise.all([

@@ -15,7 +15,7 @@ export default async function Home() {
 
   const { data: readings } = await sb
     .from('weather_readings')
-    .select('city,temperature_f,humidity,wind_speed,weather_code,recorded_at')
+    .select('city,temperature_f,humidity,wind_speed,weather_code,recorded_at,timezone,country_code')
     .order('city')
 
   const cities = (readings ?? []).map(r => r.city as string)

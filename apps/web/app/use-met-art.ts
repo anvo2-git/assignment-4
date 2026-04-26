@@ -22,19 +22,52 @@ function weatherKeyword(code: number | null): string {
   return 'storm'
 }
 
-// module-level cache: keyword → array of object IDs
+const MET_GEO: Record<string, string> = {
+  US: 'United States',
+  GB: 'England',
+  JP: 'Japan',
+  FR: 'France',
+  DE: 'Germany',
+  IT: 'Italy',
+  ES: 'Spain',
+  NL: 'Netherlands',
+  BE: 'Belgium',
+  AU: 'Australia',
+  CN: 'China',
+  IN: 'India',
+  BR: 'Brazil',
+  MX: 'Mexico',
+  CA: 'Canada',
+  AT: 'Austria',
+  RU: 'Russia',
+  GR: 'Greece',
+  EG: 'Egypt',
+  TR: 'Turkey',
+}
+
+// module-level caches
 const idCache = new Map<string, number[]>()
-// module-level cache: objectId → MetArt
 const artCache = new Map<number, MetArt>()
 
-async function getObjectIds(keyword: string): Promise<number[]> {
-  if (idCache.has(keyword)) return idCache.get(keyword)!
+async function getObjectIds(keyword: string, geoLocation?: string): Promise<number[]> {
+  const key = geoLocation ? `${geoLocation}:${keyword}` : keyword
+  if (idCache.has(key)) return idCache.get(key)!
+
+  const geo = geoLocation ? `&geoLocation=${encodeURIComponent(geoLocation)}` : ''
   const res = await fetch(
-    `https://collectionapi.metmuseum.org/public/collection/v1/search?q=${encodeURIComponent(keyword)}&hasImages=true&medium=Paintings`
+    `https://collectionapi.metmuseum.org/public/collection/v1/search?q=${encodeURIComponent(keyword)}&hasImages=true&medium=Paintings${geo}`
   )
   const data = await res.json()
   const ids: number[] = (data.objectIDs ?? []).slice(0, 80)
-  idCache.set(keyword, ids)
+
+  // fallback to no geoLocation if country returned nothing
+  if (ids.length === 0 && geoLocation) {
+    const fallback = await getObjectIds(keyword)
+    idCache.set(key, fallback)
+    return fallback
+  }
+
+  idCache.set(key, ids)
   return ids
 }
 
@@ -55,18 +88,18 @@ async function getArt(objectId: number): Promise<MetArt | null> {
   return art
 }
 
-export function useMetArt(weatherCode: number | null) {
+export function useMetArt(weatherCode: number | null, countryCode?: string | null) {
   const [art, setArt] = useState<MetArt | null>(null)
 
   useEffect(() => {
     let cancelled = false
     const keyword = weatherKeyword(weatherCode)
+    const geoLocation = countryCode ? MET_GEO[countryCode.toUpperCase()] : undefined
 
     async function load() {
-      const ids = await getObjectIds(keyword)
+      const ids = await getObjectIds(keyword, geoLocation)
       if (!ids.length || cancelled) return
 
-      // try up to 5 random picks until we get one with an image
       for (let attempt = 0; attempt < 5; attempt++) {
         const id = ids[Math.floor(Math.random() * ids.length)]
         const result = await getArt(id)
@@ -77,9 +110,10 @@ export function useMetArt(weatherCode: number | null) {
       }
     }
 
+    setArt(null)
     load()
     return () => { cancelled = true }
-  }, [weatherCode])
+  }, [weatherCode, countryCode])
 
   return art
 }

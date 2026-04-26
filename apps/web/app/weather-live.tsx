@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useMetArt } from './use-met-art'
+import { removeCity } from './actions'
+import { useTransition } from 'react'
 
 export type WeatherReading = {
   city: string
@@ -11,6 +13,8 @@ export type WeatherReading = {
   wind_speed: number | null
   weather_code: number | null
   recorded_at: string | null
+  timezone: string | null
+  country_code: string | null
 }
 
 export type CityStats = {
@@ -45,29 +49,65 @@ function weatherLabel(code: number | null): string {
   return 'Thunderstorm'
 }
 
+function LocalTime({ timezone }: { timezone: string }) {
+  const [time, setTime] = useState('')
+
+  useEffect(() => {
+    function update() {
+      setTime(new Date().toLocaleTimeString('en-US', {
+        timeZone: timezone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }))
+    }
+    update()
+    const id = setInterval(update, 10000)
+    return () => clearInterval(id)
+  }, [timezone])
+
+  return <span>{time}</span>
+}
+
 function WeatherCard({
   reading,
   stats,
   isFavorite,
+  onRemove,
 }: {
   reading: WeatherReading
   stats: CityStats | null
   isFavorite: boolean
+  onRemove?: () => void
 }) {
-  const updatedAt = reading.recorded_at
-    ? new Date(reading.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : '—'
-
+  const art = useMetArt(reading.weather_code, reading.country_code)
   const hasStats = stats && (stats.min_f != null || stats.max_f != null)
-  const art = useMetArt(reading.weather_code)
 
   return (
     <div className={`rounded-2xl border flex flex-col bg-white shadow-sm transition-shadow hover:shadow-md overflow-hidden ${isFavorite ? 'border-blue-400 ring-1 ring-blue-200' : 'border-gray-200'}`}>
       <div className="p-5 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="font-semibold text-gray-800 truncate">{reading.city}</span>
-          {isFavorite && <span className="text-xs text-blue-500 font-medium">★ saved</span>}
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            {isFavorite && <span className="text-xs text-blue-500 font-medium">★ saved</span>}
+            {isFavorite && onRemove && (
+              <button
+                onClick={onRemove}
+                className="text-gray-300 hover:text-red-400 transition-colors text-base leading-none"
+                aria-label={`Remove ${reading.city}`}
+              >
+                ×
+              </button>
+            )}
+          </div>
         </div>
+
+        {reading.timezone && (
+          <div className="text-xs text-gray-400">
+            🕐 <LocalTime timezone={reading.timezone} />
+          </div>
+        )}
+
         <div className="text-4xl">{weatherIcon(reading.weather_code)}</div>
         <div className="text-2xl font-bold text-gray-900">
           {reading.temperature_f != null ? `${Math.round(reading.temperature_f)}°F` : '—'}
@@ -85,7 +125,6 @@ function WeatherCard({
             {stats.avg_f != null && <span className="text-gray-300 ml-1">(avg {Math.round(stats.avg_f)}°)</span>}
           </div>
         )}
-        <div className="text-xs text-gray-300 mt-auto">Updated {updatedAt}</div>
       </div>
 
       {art && (
@@ -93,7 +132,7 @@ function WeatherCard({
           href={art.objectUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="block relative group"
+          className="block relative group mt-auto"
         >
           <img
             src={art.imageUrl}
@@ -124,8 +163,8 @@ export default function WeatherLive({ initialReadings, initialStats, userCities 
     for (const r of initialReadings) m.set(r.city, r)
     return m
   })
-
   const [stats] = useState<Record<string, CityStats>>(initialStats)
+  const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     setByCity(prev => {
@@ -187,6 +226,7 @@ export default function WeatherLive({ initialReadings, initialStats, userCities 
             reading={r}
             stats={stats[r.city] ?? null}
             isFavorite={userCitySet.has(r.city)}
+            onRemove={userCitySet.has(r.city) ? () => startTransition(() => removeCity(r.city)) : undefined}
           />
         ))}
       </div>
