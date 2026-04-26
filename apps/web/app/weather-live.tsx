@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { useMetArt } from './use-met-art'
+import { useItunesTrack, useAudioPlayer } from './use-itunes-track'
 import { removeCity } from './actions'
 import { useTransition } from 'react'
 
@@ -87,7 +87,8 @@ function WeatherCard({
   isFavorite: boolean
   onRemove?: () => void
 }) {
-  const art = useMetArt(reading.weather_code, reading.country_code)
+  const track = useItunesTrack(reading.weather_code)
+  const { playing, toggle } = useAudioPlayer(track?.previewUrl)
   const hasStats = stats && (stats.min_f != null || stats.max_f != null)
   const flag = countryFlag(reading.country_code)
 
@@ -138,25 +139,21 @@ function WeatherCard({
         )}
       </div>
 
-      {art && (
-        <a
-          href={art.objectUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block relative group mt-auto cursor-pointer"
-        >
-          <img
-            src={art.imageUrl}
-            alt={art.title}
-            className="w-full h-32 object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-2">
-            <div className="text-white select-none">
-              <p className="text-xs font-medium leading-tight truncate">{art.title}</p>
-              <p className="text-xs opacity-70 truncate">{art.artist}</p>
-            </div>
+      {track && (
+        <div className="mt-auto border-t border-gray-100 flex items-center gap-3 px-4 py-3 bg-gray-50">
+          <img src={track.artworkUrl} alt={track.trackName} className="w-10 h-10 rounded object-cover shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-700 truncate">{track.trackName}</p>
+            <p className="text-xs text-gray-400 truncate">{track.artistName}</p>
           </div>
-        </a>
+          <button
+            onClick={toggle}
+            className="shrink-0 w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center hover:bg-gray-700 transition-colors text-xs cursor-pointer"
+            aria-label={playing ? 'Pause preview' : 'Play preview'}
+          >
+            {playing ? '⏸' : '▶'}
+          </button>
+        </div>
       )}
     </div>
   )
