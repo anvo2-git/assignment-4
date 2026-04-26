@@ -44,6 +44,9 @@ async function fetchWeather(lat: number, lon: number) {
     `&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code` +
     `&temperature_unit=fahrenheit&timezone=auto`
   const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Open-Meteo weather request failed with ${res.status}`)
+  }
   return res.json()
 }
 
@@ -61,31 +64,47 @@ async function fetchAndStore() {
   const cities = [...DEFAULT_CITIES, ...userCities]
 
   for (const city of cities) {
-    const data = await fetchWeather(city.lat, city.lon)
-    const c = data.current
+    try {
+      const data = await fetchWeather(city.lat, city.lon)
+      const c = data.current
+      if (!c) {
+        throw new Error('Open-Meteo response missing current weather')
+      }
 
-    const row = {
-      city: city.name,
-      temperature_f: c.temperature_2m,
-      humidity: c.relative_humidity_2m,
-      wind_speed: c.wind_speed_10m,
-      weather_code: c.weather_code,
-      recorded_at: c.time,
-      timezone: data.timezone ?? null,
-      country_code: city.country ?? null,
+      const row = {
+        city: city.name,
+        temperature_f: c.temperature_2m,
+        humidity: c.relative_humidity_2m,
+        wind_speed: c.wind_speed_10m,
+        weather_code: c.weather_code,
+        recorded_at: c.time,
+        timezone: data.timezone ?? null,
+        country_code: city.country ?? null,
+      }
+
+      const [{ error: upsertErr }, { error: insertErr }] = await Promise.all([
+        supabase.from('weather_readings').upsert(row, { onConflict: 'city' }),
+        supabase.from('weather_history').insert(row),
+      ])
+
+      if (upsertErr) console.error(`  Error upserting ${city.name}:`, upsertErr.message)
+      if (insertErr) console.error(`  Error inserting history ${city.name}:`, insertErr.message)
+      if (!upsertErr && !insertErr) console.log(`  ${city.name}: ${c.temperature_2m}°F`)
+    } catch (err) {
+      console.error(
+        `  Error processing ${city.name}:`,
+        err instanceof Error ? err.message : err
+      )
     }
-
-    const [{ error: upsertErr }, { error: insertErr }] = await Promise.all([
-      supabase.from('weather_readings').upsert(row, { onConflict: 'city' }),
-      supabase.from('weather_history').insert(row),
-    ])
-
-    if (upsertErr) console.error(`  Error upserting ${city.name}:`, upsertErr.message)
-    if (insertErr) console.error(`  Error inserting history ${city.name}:`, insertErr.message)
-    if (!upsertErr && !insertErr) console.log(`  ${city.name}: ${c.temperature_2m}°F`)
   }
 }
 
 const interval = parseInt(process.env.POLL_INTERVAL_MS ?? '30000')
-fetchAndStore()
-setInterval(fetchAndStore, interval)
+fetchAndStore().catch(err => {
+  console.error('Initial poll failed:', err instanceof Error ? err.message : err)
+})
+setInterval(() => {
+  fetchAndStore().catch(err => {
+    console.error('Poll failed:', err instanceof Error ? err.message : err)
+  })
+}, interval)
