@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { useMetArt } from './use-met-art'
+import { useItunesTrack } from './use-itunes-track'
 import { removeCity } from './actions'
 import { useTransition } from 'react'
 
@@ -80,8 +80,32 @@ function WeatherCard({
   isFavorite: boolean
   onRemove?: () => void
 }) {
-  const art = useMetArt(reading.weather_code, reading.country_code)
+  const track = useItunesTrack(reading.weather_code, reading.country_code)
+  const [playing, setPlaying] = useState(false)
+  const audioRef = useState<HTMLAudioElement | null>(null)
   const hasStats = stats && (stats.min_f != null || stats.max_f != null)
+
+  function togglePlay() {
+    if (!track) return
+    if (!audioRef[0]) {
+      const audio = new Audio(track.previewUrl)
+      audio.onended = () => setPlaying(false)
+      audioRef[1](audio)
+      audio.play()
+      setPlaying(true)
+    } else if (playing) {
+      audioRef[0].pause()
+      setPlaying(false)
+    } else {
+      audioRef[0].play()
+      setPlaying(true)
+    }
+  }
+
+  useEffect(() => {
+    return () => { audioRef[0]?.pause() }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className={`rounded-2xl border flex flex-col bg-white shadow-sm transition-shadow hover:shadow-md overflow-hidden ${isFavorite ? 'border-blue-400 ring-1 ring-blue-200' : 'border-gray-200'}`}>
@@ -102,7 +126,7 @@ function WeatherCard({
           </div>
         </div>
 
-        {reading.timezone && (
+        {reading.timezone && reading.timezone !== 'GMT' && (
           <div className="text-xs text-gray-400">
             🕐 <LocalTime timezone={reading.timezone} />
           </div>
@@ -127,25 +151,21 @@ function WeatherCard({
         )}
       </div>
 
-      {art && (
-        <a
-          href={art.objectUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block relative group mt-auto"
-        >
-          <img
-            src={art.imageUrl}
-            alt={art.title}
-            className="w-full h-32 object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-2">
-            <div className="text-white">
-              <p className="text-xs font-medium leading-tight truncate">{art.title}</p>
-              <p className="text-xs opacity-70 truncate">{art.artist}</p>
-            </div>
+      {track && (
+        <div className="mt-auto border-t border-gray-100 flex items-center gap-3 px-4 py-3 bg-gray-50">
+          <img src={track.artworkUrl} alt={track.trackName} className="w-10 h-10 rounded object-cover shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-700 truncate">{track.trackName}</p>
+            <p className="text-xs text-gray-400 truncate">{track.artistName}</p>
           </div>
-        </a>
+          <button
+            onClick={togglePlay}
+            className="shrink-0 w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center hover:bg-gray-700 transition-colors text-xs"
+            aria-label={playing ? 'Pause preview' : 'Play preview'}
+          >
+            {playing ? '⏸' : '▶'}
+          </button>
+        </div>
       )}
     </div>
   )
