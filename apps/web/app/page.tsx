@@ -41,6 +41,7 @@ export default async function Home() {
         initialReadings={(readings ?? []) as WeatherReading[]}
         initialStats={statsMap}
         userCities={userCities}
+        isSignedIn={!!userId}
       />
       {userId && <CityManager userCities={userCities} />}
       {!userId && (

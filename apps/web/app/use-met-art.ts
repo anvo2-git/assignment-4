@@ -63,7 +63,7 @@ async function getObjectIds(keyword: string, culture?: string): Promise<number[]
 
   const q = culture ? `${culture} ${keyword}` : keyword
   const res = await fetch(
-    `https://collectionapi.metmuseum.org/public/collection/v1/search?q=${encodeURIComponent(q)}&hasImages=true`
+    `https://collectionapi.metmuseum.org/public/collection/v1/search?q=${encodeURIComponent(q)}&hasImages=true&medium=Paintings`
   )
   const data = await res.json()
   const ids: number[] = (data.objectIDs ?? []).slice(0, 80)

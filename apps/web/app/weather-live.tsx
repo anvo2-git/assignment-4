@@ -151,15 +151,14 @@ function WeatherCard({
   )
 }
 
-const DEFAULT_CITY_NAMES = new Set(['Chicago', 'New York', 'Los Angeles', 'London', 'Tokyo'])
-
 interface Props {
   initialReadings: WeatherReading[]
   initialStats: Record<string, CityStats>
   userCities: string[]
+  isSignedIn: boolean
 }
 
-export default function WeatherLive({ initialReadings, initialStats, userCities }: Props) {
+export default function WeatherLive({ initialReadings, initialStats, userCities, isSignedIn }: Props) {
   const [byCity, setByCity] = useState<Map<string, WeatherReading>>(() => {
     const m = new Map<string, WeatherReading>()
     for (const r of initialReadings) m.set(r.city, r)
@@ -167,6 +166,7 @@ export default function WeatherLive({ initialReadings, initialStats, userCities 
   })
   const [stats] = useState<Record<string, CityStats>>(initialStats)
   const [localSaved, setLocalSaved] = useState<Set<string>>(() => new Set(userCities))
+  const [removed, setRemoved] = useState<Set<string>>(() => new Set())
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -205,12 +205,16 @@ export default function WeatherLive({ initialReadings, initialStats, userCities 
   }, [])
 
   function handleRemove(city: string) {
-    setLocalSaved(prev => { const s = new Set(prev); s.delete(city); return s })
-    startTransition(() => removeCity(city))
+    setRemoved(prev => new Set(prev).add(city))
+    if (localSaved.has(city)) {
+      setLocalSaved(prev => { const s = new Set(prev); s.delete(city); return s })
+      startTransition(() => removeCity(city))
+    }
   }
 
-  const allReadings = [...byCity.values()].sort((a, b) => a.city.localeCompare(b.city))
-  const readings = allReadings.filter(r => DEFAULT_CITY_NAMES.has(r.city) || localSaved.has(r.city))
+  const readings = [...byCity.values()]
+    .filter(r => !removed.has(r.city))
+    .sort((a, b) => a.city.localeCompare(b.city))
 
   if (readings.length === 0) {
     return (
@@ -238,7 +242,7 @@ export default function WeatherLive({ initialReadings, initialStats, userCities 
             reading={r}
             stats={stats[r.city] ?? null}
             isFavorite={localSaved.has(r.city)}
-            onRemove={localSaved.has(r.city) ? () => handleRemove(r.city) : undefined}
+            onRemove={isSignedIn ? () => handleRemove(r.city) : undefined}
           />
         ))}
       </div>
