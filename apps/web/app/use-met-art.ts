@@ -55,28 +55,35 @@ const MET_CULTURE: Record<string, string> = {
 
 // module-level caches
 const idCache = new Map<string, number[]>()
+const pendingIds = new Map<string, Promise<number[]>>()
 const artCache = new Map<number, MetArt>()
 
-async function getObjectIds(keyword: string, culture?: string): Promise<number[]> {
-  const key = culture ? `${culture}:${keyword}` : keyword
-  if (idCache.has(key)) return idCache.get(key)!
-
-  const q = culture ? `${culture} ${keyword}` : keyword
+async function fetchObjectIds(key: string, q: string, culture?: string): Promise<number[]> {
   const res = await fetch(
     `https://collectionapi.metmuseum.org/public/collection/v1/search?q=${encodeURIComponent(q)}&hasImages=true&medium=Paintings`
   )
   const data = await res.json()
   const ids: number[] = (data.objectIDs ?? []).slice(0, 80)
 
-  // fallback to keyword-only if country+keyword returns nothing
   if (ids.length === 0 && culture) {
-    const fallback = await getObjectIds(keyword)
-    idCache.set(key, fallback)
-    return fallback
+    return getObjectIds(q.replace(culture + ' ', ''))
   }
 
   idCache.set(key, ids)
   return ids
+}
+
+async function getObjectIds(keyword: string, culture?: string): Promise<number[]> {
+  const key = culture ? `${culture}:${keyword}` : keyword
+  if (idCache.has(key)) return idCache.get(key)!
+
+  // deduplicate concurrent fetches for the same key
+  if (!pendingIds.has(key)) {
+    const q = culture ? `${culture} ${keyword}` : keyword
+    const p = fetchObjectIds(key, q, culture).finally(() => pendingIds.delete(key))
+    pendingIds.set(key, p)
+  }
+  return pendingIds.get(key)!
 }
 
 async function getArt(objectId: number): Promise<MetArt | null> {
@@ -109,10 +116,12 @@ export function useMetArt(weatherCode: number | null, countryCode?: string | nul
       const ids = await getObjectIds(keyword, culture)
       if (!ids.length || cancelled) return
 
-      for (let attempt = 0; attempt < 15; attempt++) {
-        const id = ids[Math.floor(Math.random() * ids.length)]
+      // shuffle once so every attempt hits a unique ID
+      const shuffled = ids.slice().sort(() => Math.random() - 0.5).slice(0, 20)
+      for (const id of shuffled) {
+        if (cancelled) return
         const result = await getArt(id)
-        if (result && !cancelled) {
+        if (result) {
           setArt(result)
           return
         }
