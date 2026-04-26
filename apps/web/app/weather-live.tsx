@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useItunesTrack } from './use-itunes-track'
 import { removeCity } from './actions'
@@ -82,29 +82,28 @@ function WeatherCard({
 }) {
   const track = useItunesTrack(reading.weather_code, reading.country_code)
   const [playing, setPlaying] = useState(false)
-  const audioRef = useState<HTMLAudioElement | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const hasStats = stats && (stats.min_f != null || stats.max_f != null)
 
   function togglePlay() {
     if (!track) return
-    if (!audioRef[0]) {
+    if (!audioRef.current) {
       const audio = new Audio(track.previewUrl)
       audio.onended = () => setPlaying(false)
-      audioRef[1](audio)
+      audioRef.current = audio
       audio.play()
       setPlaying(true)
     } else if (playing) {
-      audioRef[0].pause()
+      audioRef.current.pause()
       setPlaying(false)
     } else {
-      audioRef[0].play()
+      audioRef.current.play()
       setPlaying(true)
     }
   }
 
   useEffect(() => {
-    return () => { audioRef[0]?.pause() }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { audioRef.current?.pause() }
   }, [])
 
   return (
