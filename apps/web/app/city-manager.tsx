@@ -37,6 +37,7 @@ export default function CityManager({ userCities }: Props) {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [geoLoading, setGeoLoading] = useState(false)
   const [geoError, setGeoError] = useState<string | null>(null)
+  const [pendingCity, setPendingCity] = useState<string | null>(null)
 
   async function detectLocation() {
     if (!navigator.geolocation) {
@@ -109,11 +110,17 @@ export default function CityManager({ userCities }: Props) {
     return () => clearTimeout(timer)
   }, [query])
 
+  useEffect(() => {
+    if (pendingCity && userCities.includes(pendingCity)) {
+      setPendingCity(null)
+    }
+  }, [pendingCity, userCities])
+
   function handleAdd(formData: FormData) {
     const city = (preview?.city ?? (formData.get('city') as string ?? '')).trim()
     if (!city) return
     setQuery('')
-    setPreview(null)
+    setPendingCity(city)
     startTransition(() => addCity(city))
   }
 
@@ -160,6 +167,12 @@ export default function CityManager({ userCities }: Props) {
             </div>
           </div>
           <span className="ml-auto text-xs text-blue-400">preview</span>
+        </div>
+      )}
+
+      {pendingCity && !userCities.includes(pendingCity) && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          Saved {pendingCity}. The worker will add its weather after the next poll.
         </div>
       )}
 
