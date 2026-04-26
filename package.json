@@ -1,0 +1,9 @@
+{
+  "name": "assignment-4",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:worker": "npm --workspace apps/worker run dev"
+  }
+}
