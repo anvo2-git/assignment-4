@@ -85,11 +85,12 @@ async function getArt(objectId: number): Promise<MetArt | null> {
     `https://collectionapi.metmuseum.org/public/collection/v1/objects/${objectId}`
   )
   const data = await res.json()
-  if (!data.primaryImageSmall) return null
+  const imageUrl = data.primaryImageSmall || data.primaryImage
+  if (!imageUrl) return null
   const art: MetArt = {
     title: data.title ?? 'Untitled',
     artist: data.artistDisplayName || 'Unknown artist',
-    imageUrl: data.primaryImageSmall,
+    imageUrl,
     objectUrl: data.objectURL ?? `https://www.metmuseum.org/art/collection/search/${objectId}`,
   }
   artCache.set(objectId, art)
@@ -108,7 +109,7 @@ export function useMetArt(weatherCode: number | null, countryCode?: string | nul
       const ids = await getObjectIds(keyword, culture)
       if (!ids.length || cancelled) return
 
-      for (let attempt = 0; attempt < 5; attempt++) {
+      for (let attempt = 0; attempt < 15; attempt++) {
         const id = ids[Math.floor(Math.random() * ids.length)]
         const result = await getArt(id)
         if (result && !cancelled) {

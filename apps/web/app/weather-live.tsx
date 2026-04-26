@@ -90,7 +90,7 @@ function WeatherCard({
           <span className="font-semibold text-gray-800 truncate">{reading.city}</span>
           <div className="flex items-center gap-2 shrink-0 ml-2">
             {isFavorite && <span className="text-xs text-blue-500 font-medium">★ saved</span>}
-            {isFavorite && onRemove && (
+            {onRemove && (
               <button
                 onClick={onRemove}
                 className="text-gray-300 hover:text-red-400 transition-colors text-base leading-none"
